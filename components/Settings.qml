@@ -8,7 +8,7 @@ import qs.Services
 
 PluginSettings {
     id: root
-    pluginId: "githubHeatmapDMS"
+    pluginId: "githubHeatmapPlus"
 
     // IMPORTANT: we deliberately do NOT use the base PluginSettings.saveValue()/
     // loadValue(), even though they exist. Those wrap this component's
