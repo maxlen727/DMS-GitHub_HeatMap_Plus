@@ -55,9 +55,59 @@ PluginComponent {
     // Re-read every setting from the shared store. Called once on load and
     // again on every SettingsData.pluginSettingsChanged - see the
     // Connections block below.
+    // True once we've successfully completed at least one refreshAll() where
+    // SettingsData actually returned a non-empty username (or the user had
+    // none configured and explicitly saved that way via the settings panel).
+    // Used to tell "SettingsData hasn't finished loading from disk yet"
+    // (transient empty read, e.g. right after resume-from-suspend, before
+    // the settings JSON has been re-parsed) apart from "the user genuinely
+    // has no username configured". Without this guard, a stray empty read
+    // during startup/resume would flip githubUsername to "", which fires
+    // onGithubUsernameChanged -> checkAndStartTimer() -> stops the refresh
+    // timer and wipes the widget back to placeholders, even though the
+    // real setting was sitting right there in plugin_settings.json the
+    // whole time (confirmed by: opening the settings panel showed the
+    // correct value, and clicking Save - which re-broadcasts that same
+    // value - immediately fixed the widget).
+    property bool settingsEverLoaded: false
+    // How many times refreshAll() has come back with an empty username.
+    // Used only to stop the retry timer for a genuinely-fresh install
+    // (nobody has ever configured a username) rather than polling forever -
+    // it does NOT gate the "don't clobber existing data" guard below, which
+    // stays safe regardless of this count.
+    property int emptyReadCount: 0
+    readonly property int maxEmptyRetries: 8 // ~1+2+4+8+15+15+15+15s of backoff
+
     function refreshAll() {
+        const newUsername = readShared("username", "")
+
+        // Guard: if we've already loaded real settings once before, and this
+        // read suddenly comes back empty, treat it as SettingsData not being
+        // ready yet rather than the user clearing their username - keep
+        // showing whatever we already have and let the next
+        // pluginSettingsChanged (or a manual Save) supply the real value.
+        if (!(root.settingsEverLoaded && newUsername === "" && root.githubUsername !== "")) {
+            root.githubUsername = newUsername
+        }
+
+        if (newUsername !== "") {
+            root.settingsEverLoaded = true
+            root.emptyReadCount = 0
+        } else if (!root.settingsEverLoaded) {
+            // Still empty and we've never seen real data - could be
+            // SettingsData not ready yet, or could be a genuinely fresh
+            // install with no username configured. Count attempts so the
+            // retry timer can eventually give up on the latter case instead
+            // of polling forever; a real pluginSettingsChanged signal (e.g.
+            // the user finally saving a username in the settings panel)
+            // will still refresh normally regardless of this counter.
+            root.emptyReadCount += 1
+            if (root.emptyReadCount >= root.maxEmptyRetries) {
+                root.settingsEverLoaded = true
+            }
+        }
+
         root.showNotifications = readShared("showNotifications", true)
-        root.githubUsername = readShared("username", "")
         root.refreshInterval = readShared("refreshInterval", 300)
         root.followThemeColor = readShared("followThemeColor", false)
         root.pillSquareSize = readShared("pillSquareSize", 10)
@@ -259,6 +309,33 @@ PluginComponent {
         onTriggered: {
             if (githubUsername) {
                 refreshTimer.start()
+            }
+        }
+    }
+
+    // Self-healing retry: if SettingsData hadn't finished reloading from
+    // disk yet when Component.onCompleted ran (observed after resume from
+    // suspend, and after a full DMS reload), settingsEverLoaded will still
+    // be false here.
+    //
+    // A single fixed delay is a guess - if SettingsData happens to take
+    // longer than the guess (a slow disk, a busy resume, whatever), we're
+    // right back to a stuck widget with no further retry scheduled. Instead
+    // this repeats with exponential backoff (1s, 2s, 4s, 8s, capped at 15s)
+    // and keeps going indefinitely until settingsEverLoaded actually flips
+    // true - at which point `running: !root.settingsEverLoaded` turns the
+    // timer off by itself. Worst case this polls a few extra times at a
+    // slowly-growing interval; it can never get permanently stuck the way a
+    // one-shot timer can.
+    Timer {
+        id: settingsRetry
+        interval: 1000
+        repeat: true
+        running: !root.settingsEverLoaded
+        onTriggered: {
+            root.refreshAll()
+            if (!root.settingsEverLoaded) {
+                interval = Math.min(interval * 2, 15000)
             }
         }
     }

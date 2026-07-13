@@ -68,8 +68,35 @@ DesktopPluginComponent {
     // cachedGridYear write for how this is populated.
     property var rawGridData: []
 
+    // True once refreshAll() has successfully picked up real cached grid
+    // data at least once. Guards against a transient empty read from
+    // SettingsData - e.g. right after resume-from-suspend, before it has
+    // finished re-parsing plugin_settings.json from disk - which would
+    // otherwise wipe rawGridData/githubUsername back to empty even though
+    // the real values were sitting in the settings file the whole time.
+    // (Symptom this fixes: widget shows nothing until you open the settings
+    // panel and click Save, which re-broadcasts the real values.)
+    property bool settingsEverLoaded: false
+    // Counts consecutive empty reads before settingsEverLoaded first flips
+    // true. Lets the retry timer eventually stop for a genuinely fresh
+    // install (bar widget never run, no cache exists yet) instead of
+    // polling forever - does not affect the "don't clobber existing data"
+    // guard below.
+    property int emptyReadCount: 0
+    readonly property int maxEmptyRetries: 8
+
     function refreshAll() {
-        root.githubUsername = readShared("username", "")
+        const newUsername = readShared("username", "")
+        const rawNew = readShared("cachedGridYear", "")
+
+        if (root.settingsEverLoaded && newUsername === "" && rawNew === "" && root.githubUsername !== "") {
+            // Looks like a not-ready-yet read, not a genuine reset - leave
+            // existing state alone and let the retry timer or the next real
+            // pluginSettingsChanged signal supply correct data.
+            return
+        }
+
+        root.githubUsername = newUsername
         root.followThemeColor = readShared("followThemeColor", false)
         root.showDisplayName = readShared("showDisplayName", false)
         root.bgOpacity = (readShared("desktopBackgroundOpacity", 70)) / 100
@@ -78,19 +105,46 @@ DesktopPluginComponent {
         root.totalContributions = readShared("cachedTotal", "0")
         root.githubDisplayName = readShared("cachedDisplayName", "")
 
-        const raw = readShared("cachedGridYear", "")
-        if (!raw) {
+        if (!rawNew) {
             root.rawGridData = []
-            return
-        }
-        try {
-            root.rawGridData = JSON.parse(raw)
-        } catch (e) {
-            root.rawGridData = []
+            if (!root.settingsEverLoaded) {
+                root.emptyReadCount += 1
+                if (root.emptyReadCount >= root.maxEmptyRetries) {
+                    root.settingsEverLoaded = true
+                }
+            }
+        } else {
+            try {
+                root.rawGridData = JSON.parse(rawNew)
+                root.settingsEverLoaded = true
+                root.emptyReadCount = 0
+            } catch (e) {
+                root.rawGridData = []
+            }
         }
     }
 
     Component.onCompleted: refreshAll()
+
+    // Self-healing retry in case the first refreshAll() above hit
+    // SettingsData before it had finished loading (see settingsEverLoaded
+    // comment). Exponential backoff (1s, 2s, 4s... capped at 15s) instead
+    // of a single fixed-delay guess, so it can't get permanently stuck if
+    // SettingsData happens to take longer than expected to settle.
+    // Auto-cancels itself once real data has been picked up, since the
+    // `running` binding re-evaluates to false as soon as settingsEverLoaded
+    // flips to true.
+    Timer {
+        interval: 1000
+        repeat: true
+        running: !root.settingsEverLoaded
+        onTriggered: {
+            root.refreshAll()
+            if (!root.settingsEverLoaded) {
+                interval = Math.min(interval * 2, 15000)
+            }
+        }
+    }
 
     // BarWidget.qml and Settings.qml both write through
     // SettingsData.setPluginSetting() directly (see the comment in
