@@ -1,0 +1,36 @@
+{
+  "id": "githubHeatmapPlus",
+  "name": "GitHub Heatmap Plus",
+  "description": "GitHub contribution heatmap for DankBar and your desktop, with color-coded activity levels and theme-aware styling.",
+  "category": "utilities",
+  "version": "2.0.0",
+  "author": "maxlen727",
+  "icon": "code",
+  "type": "composite",
+  "components": {
+    "widget": "./components/BarWidget.qml",
+    "desktop": "./components/DesktopWidget.qml"
+  },
+  "settings": "./components/Settings.qml",
+  "capabilities": [
+    "dankbar-widget",
+    "desktop-widget"
+  ],
+  "repo": "https://github.com/maxlen727/DMS-GitHub_HeatMap_Plus",
+  "compositors": [
+    "any"
+  ],
+  "distro": [
+    "any"
+  ],
+  "dependencies": [
+    "dms"
+  ],
+  "requires_dms": ">=1.5.0",
+  "screenshot": "https://raw.githubusercontent.com/maxlen727/DMS-GitHub_HeatMap_Plus/refs/heads/main/assets/Overall.png",
+  "permissions": [
+    "settings_read",
+    "settings_write",
+    "process_read"
+  ]
+}
