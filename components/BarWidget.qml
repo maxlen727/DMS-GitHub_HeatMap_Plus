@@ -14,7 +14,18 @@ PluginComponent {
     popoutWidth: 320
     popoutHeight: 460
 
-    property bool showNotifications: (pluginData && pluginData.showNotifications !== undefined) ? pluginData.showNotifications : true
+    // NOTE on settings reactivity: these used to be plain binding expressions
+    // over `pluginData` (e.g. `(pluginData && pluginData.foo) ? ... : default`).
+    // That only repaints when the *pluginData object reference itself* is
+    // swapped out by the DMS plugin host - if the host instead mutates a
+    // field on the existing object, QML's binding engine never notices, so
+    // the widget kept showing stale settings until the whole plugin was
+    // reloaded. We now read through SettingsData.getPluginSetting() (the
+    // same shared, non-instance-scoped store DesktopWidget.qml and
+    // Settings.qml use) and explicitly re-read everything in refreshAll()
+    // whenever SettingsData.pluginSettingsChanged fires. See the big
+    // comment block at the top of DesktopWidget.qml for the full story.
+    property bool showNotifications: true
     
     // Icons
     readonly property string iconBar: "commit"
@@ -23,18 +34,50 @@ PluginComponent {
     readonly property string iconOpen: "open_in_browser"
     readonly property string iconSuccess: "check_circle"
 
-    // Settings from pluginData
-    property string githubUsername: (pluginData && pluginData.username) ? pluginData.username : ""
-    property int refreshInterval: (pluginData && pluginData.refreshInterval) ? pluginData.refreshInterval : 300
-    property bool followThemeColor: (pluginData && pluginData.followThemeColor !== undefined) ? pluginData.followThemeColor : false
+    // Settings (shared plugin_settings.json namespace with DesktopWidget.qml
+    // and Settings.qml - see refreshAll() below for how these get populated)
+    property string githubUsername: ""
+    property int refreshInterval: 300
+    property bool followThemeColor: false
     property string faGithubGlyph: "\uf09b"
     property string faFamily: "Font Awesome 6 Brands, Font Awesome 5 Brands, Font Awesome 6 Free, Font Awesome 5 Free"
 
     // Top-bar pill appearance settings
-    property int pillSquareSize: (pluginData && pluginData.pillSquareSize) ? pluginData.pillSquareSize : 10
-    property int pillSpacing: (pluginData && pluginData.pillSpacing !== undefined) ? pluginData.pillSpacing : 3
-    property bool pillShowSingleDay: (pluginData && pluginData.pillShowSingleDay !== undefined) ? pluginData.pillShowSingleDay : false
-    property bool showDisplayName: (pluginData && pluginData.showDisplayName !== undefined) ? pluginData.showDisplayName : false
+    property int pillSquareSize: 10
+    property int pillSpacing: 3
+    property bool pillShowSingleDay: false
+    property bool showDisplayName: false
+
+    function readShared(key, defaultValue) {
+        return SettingsData.getPluginSetting(root.pluginId, key, defaultValue)
+    }
+
+    // Re-read every setting from the shared store. Called once on load and
+    // again on every SettingsData.pluginSettingsChanged - see the
+    // Connections block below.
+    function refreshAll() {
+        root.showNotifications = readShared("showNotifications", true)
+        root.githubUsername = readShared("username", "")
+        root.refreshInterval = readShared("refreshInterval", 300)
+        root.followThemeColor = readShared("followThemeColor", false)
+        root.pillSquareSize = readShared("pillSquareSize", 10)
+        root.pillSpacing = readShared("pillSpacing", 3)
+        root.pillShowSingleDay = readShared("pillShowSingleDay", false)
+        root.showDisplayName = readShared("showDisplayName", false)
+    }
+
+    // SettingsData.pluginSettingsChanged is a global signal (it doesn't say
+    // which pluginId changed), so we just unconditionally re-read our own
+    // settings on every firing - cheap, and avoids missing an update. This
+    // mirrors DesktopWidget.qml exactly, so both surfaces (and the settings
+    // panel) always agree on the same live values without needing a manual
+    // plugin reload.
+    Connections {
+        target: SettingsData
+        function onPluginSettingsChanged() {
+            root.refreshAll()
+        }
+    }
 
     // Classic GitHub-style palette (used when followThemeColor is false).
     // Level 0 (no contributions) intentionally does NOT use a fixed color here -
@@ -142,6 +185,11 @@ PluginComponent {
 
     // Initialize with cached data if available
     Component.onCompleted: {
+        // Populate settings from the shared store first, since gridData
+        // restoration below (levelToColor calls) depends on followThemeColor
+        // already being correct.
+        root.refreshAll()
+
         const cachedTotal = SettingsData.getPluginSetting(root.pluginId, "cachedTotal", "")
         const cachedGridStr = SettingsData.getPluginSetting(root.pluginId, "cachedGrid", "")
         root.githubDisplayName = SettingsData.getPluginSetting(root.pluginId, "cachedDisplayName", "")
