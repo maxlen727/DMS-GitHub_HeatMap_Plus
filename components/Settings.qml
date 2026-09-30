@@ -449,28 +449,14 @@ PluginSettings {
                     }
 
                     DankSlider {
-
-
                         id: sizeSlider
-
-
                         width: parent.width
-
-
-                        from: 6
-
-
-                        to: 18
-
-
+                        minimum: 6
+                        maximum: 18
                         step: 1
-
-
                         value: 10
-
-
+                        showValue: false
                         wheelEnabled: false
-
 
                     }
                 }
@@ -496,28 +482,14 @@ PluginSettings {
                     }
 
                     DankSlider {
-
-
                         id: spacingSlider
-
-
                         width: parent.width
-
-
-                        from: 0
-
-
-                        to: 8
-
-
+                        minimum: 0
+                        maximum: 8
                         step: 1
-
-
                         value: 3
-
-
+                        showValue: false
                         wheelEnabled: false
-
 
                     }
                 }
@@ -595,28 +567,14 @@ PluginSettings {
                 }
 
                 DankSlider {
-
-
                     id: desktopOpacitySlider
-
-
                     width: parent.width
-
-
-                    from: 0
-
-
-                    to: 100
-
-
+                    minimum: 0
+                    maximum: 100
                     step: 5
-
-
                     value: 70
-
-
+                    showValue: false
                     wheelEnabled: false
-
 
                 }
             }
@@ -666,28 +624,14 @@ PluginSettings {
                     }
 
                     DankSlider {
-
-
                         id: desktopSquareSizeSlider
-
-
                         width: parent.width
-
-
-                        from: 6
-
-
-                        to: 24
-
-
+                        minimum: 6
+                        maximum: 24
                         step: 1
-
-
                         value: 11
-
-
+                        showValue: false
                         wheelEnabled: false
-
 
                     }
                 }
@@ -712,28 +656,14 @@ PluginSettings {
                     }
 
                     DankSlider {
-
-
                         id: desktopSquareSpacingSlider
-
-
                         width: parent.width
-
-
-                        from: 0
-
-
-                        to: 8
-
-
+                        minimum: 0
+                        maximum: 8
                         step: 1
-
-
                         value: 3
-
-
+                        showValue: false
                         wheelEnabled: false
-
 
                     }
                 }

@@ -622,7 +622,7 @@ printf '%s' "$body" | jq -c \
     
 exit 0
 `
-    }}
+    }
 
     // Bash process
     Process {
