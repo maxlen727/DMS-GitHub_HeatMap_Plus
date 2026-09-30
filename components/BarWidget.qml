@@ -516,6 +516,13 @@ PluginComponent {
 # GitHub Heatmap Fetcher (Bash + Public API)
 GITHUB_USERNAME="${escapedUsername}"
 
+# GitHub contribution color scheme (classic fallback palette)
+COLOR_0="#202329"
+COLOR_1="#0e4429"
+COLOR_2="#006d32"
+COLOR_3="#26a641"
+COLOR_4="#39d353"
+
 # 1. Calculate date range
 today=$(date +%Y-%m-%d)
 today_dow=$(date -d "$today" +%u)
@@ -552,7 +559,7 @@ printf '%s' "$body" | jq -c \
     --arg c2 "$COLOR_2" \
     --arg c3 "$COLOR_3" \
     --arg c4 "$COLOR_4" \
-    --argjson profile "$profile_json" \
+    --arg profile "$profile_json" \
     '
     def day_time: strptime("%Y-%m-%d");
 
@@ -604,6 +611,7 @@ printf '%s' "$body" | jq -c \
     | sort_by(._date) as $days
     | ($days | sort_by(._week) | group_by(._week) | map(pad_week))
       as $grid
+    | ($profile | fromjson? // {}) as $profile
     | {
         contributions: ($days | .[-7:] | map(del(._date, ._week))),
         gridData: ($grid | map(map(del(._date, ._week)))),
