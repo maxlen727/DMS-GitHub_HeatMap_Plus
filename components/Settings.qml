@@ -448,42 +448,30 @@ PluginSettings {
                         }
                     }
 
-                    Slider {
+                    DankSlider {
+
+
                         id: sizeSlider
+
+
                         width: parent.width
+
+
                         from: 6
+
+
                         to: 18
-                        stepSize: 1
+
+
+                        step: 1
+
+
                         value: 10
 
-                        background: Rectangle {
-                            x: sizeSlider.leftPadding
-                            y: sizeSlider.topPadding + sizeSlider.availableHeight / 2 - height / 2
-                            width: sizeSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: Theme.withAlpha(Theme.outline, 0.3)
 
-                            Rectangle {
-                                width: sizeSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: Theme.primary
-                            }
-                        }
+                        wheelEnabled: false
 
-                        handle: Rectangle {
-                            x: sizeSlider.leftPadding + sizeSlider.visualPosition * (sizeSlider.availableWidth - width)
-                            y: sizeSlider.topPadding + sizeSlider.availableHeight / 2 - height / 2
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: Theme.primary
-                            border.color: Theme.withAlpha(Theme.surfaceText, 0.15)
-                            border.width: sizeSlider.pressed ? 2 : 0
-                            scale: sizeSlider.pressed ? 1.15 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                        }
+
                     }
                 }
 
@@ -507,42 +495,30 @@ PluginSettings {
                         }
                     }
 
-                    Slider {
+                    DankSlider {
+
+
                         id: spacingSlider
+
+
                         width: parent.width
+
+
                         from: 0
+
+
                         to: 8
-                        stepSize: 1
+
+
+                        step: 1
+
+
                         value: 3
 
-                        background: Rectangle {
-                            x: spacingSlider.leftPadding
-                            y: spacingSlider.topPadding + spacingSlider.availableHeight / 2 - height / 2
-                            width: spacingSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: Theme.withAlpha(Theme.outline, 0.3)
 
-                            Rectangle {
-                                width: spacingSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: Theme.primary
-                            }
-                        }
+                        wheelEnabled: false
 
-                        handle: Rectangle {
-                            x: spacingSlider.leftPadding + spacingSlider.visualPosition * (spacingSlider.availableWidth - width)
-                            y: spacingSlider.topPadding + spacingSlider.availableHeight / 2 - height / 2
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: Theme.primary
-                            border.color: Theme.withAlpha(Theme.surfaceText, 0.15)
-                            border.width: spacingSlider.pressed ? 2 : 0
-                            scale: spacingSlider.pressed ? 1.15 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                        }
+
                     }
                 }
             }
@@ -618,42 +594,30 @@ PluginSettings {
                     }
                 }
 
-                Slider {
+                DankSlider {
+
+
                     id: desktopOpacitySlider
+
+
                     width: parent.width
+
+
                     from: 0
+
+
                     to: 100
-                    stepSize: 5
+
+
+                    step: 5
+
+
                     value: 70
 
-                    background: Rectangle {
-                        x: desktopOpacitySlider.leftPadding
-                        y: desktopOpacitySlider.topPadding + desktopOpacitySlider.availableHeight / 2 - height / 2
-                        width: desktopOpacitySlider.availableWidth
-                        height: 4
-                        radius: 2
-                        color: Theme.withAlpha(Theme.outline, 0.3)
 
-                        Rectangle {
-                            width: desktopOpacitySlider.visualPosition * parent.width
-                            height: parent.height
-                            radius: 2
-                            color: Theme.primary
-                        }
-                    }
+                    wheelEnabled: false
 
-                    handle: Rectangle {
-                        x: desktopOpacitySlider.leftPadding + desktopOpacitySlider.visualPosition * (desktopOpacitySlider.availableWidth - width)
-                        y: desktopOpacitySlider.topPadding + desktopOpacitySlider.availableHeight / 2 - height / 2
-                        width: 16
-                        height: 16
-                        radius: 8
-                        color: Theme.primary
-                        border.color: Theme.withAlpha(Theme.surfaceText, 0.15)
-                        border.width: desktopOpacitySlider.pressed ? 2 : 0
-                        scale: desktopOpacitySlider.pressed ? 1.15 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 100 } }
-                    }
+
                 }
             }
         }
@@ -701,42 +665,30 @@ PluginSettings {
                         }
                     }
 
-                    Slider {
+                    DankSlider {
+
+
                         id: desktopSquareSizeSlider
+
+
                         width: parent.width
+
+
                         from: 6
+
+
                         to: 24
-                        stepSize: 1
+
+
+                        step: 1
+
+
                         value: 11
 
-                        background: Rectangle {
-                            x: desktopSquareSizeSlider.leftPadding
-                            y: desktopSquareSizeSlider.topPadding + desktopSquareSizeSlider.availableHeight / 2 - height / 2
-                            width: desktopSquareSizeSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: Theme.withAlpha(Theme.outline, 0.3)
 
-                            Rectangle {
-                                width: desktopSquareSizeSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: Theme.primary
-                            }
-                        }
+                        wheelEnabled: false
 
-                        handle: Rectangle {
-                            x: desktopSquareSizeSlider.leftPadding + desktopSquareSizeSlider.visualPosition * (desktopSquareSizeSlider.availableWidth - width)
-                            y: desktopSquareSizeSlider.topPadding + desktopSquareSizeSlider.availableHeight / 2 - height / 2
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: Theme.primary
-                            border.color: Theme.withAlpha(Theme.surfaceText, 0.15)
-                            border.width: desktopSquareSizeSlider.pressed ? 2 : 0
-                            scale: desktopSquareSizeSlider.pressed ? 1.15 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                        }
+
                     }
                 }
 
@@ -759,42 +711,30 @@ PluginSettings {
                         }
                     }
 
-                    Slider {
+                    DankSlider {
+
+
                         id: desktopSquareSpacingSlider
+
+
                         width: parent.width
+
+
                         from: 0
+
+
                         to: 8
-                        stepSize: 1
+
+
+                        step: 1
+
+
                         value: 3
 
-                        background: Rectangle {
-                            x: desktopSquareSpacingSlider.leftPadding
-                            y: desktopSquareSpacingSlider.topPadding + desktopSquareSpacingSlider.availableHeight / 2 - height / 2
-                            width: desktopSquareSpacingSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: Theme.withAlpha(Theme.outline, 0.3)
 
-                            Rectangle {
-                                width: desktopSquareSpacingSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: Theme.primary
-                            }
-                        }
+                        wheelEnabled: false
 
-                        handle: Rectangle {
-                            x: desktopSquareSpacingSlider.leftPadding + desktopSquareSpacingSlider.visualPosition * (desktopSquareSpacingSlider.availableWidth - width)
-                            y: desktopSquareSpacingSlider.topPadding + desktopSquareSpacingSlider.availableHeight / 2 - height / 2
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: Theme.primary
-                            border.color: Theme.withAlpha(Theme.surfaceText, 0.15)
-                            border.width: desktopSquareSpacingSlider.pressed ? 2 : 0
-                            scale: desktopSquareSpacingSlider.pressed ? 1.15 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                        }
+
                     }
                 }
             }
