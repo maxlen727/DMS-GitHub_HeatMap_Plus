@@ -3,7 +3,7 @@
   "name": "GitHub Heatmap Plus",
   "description": "GitHub contribution heatmap for DankBar and your desktop, with color-coded activity levels and theme-aware styling.",
   "category": "utilities",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "maxlen727",
   "icon": "code",
   "type": "composite",
@@ -24,6 +24,11 @@
     "any"
   ],
   "dependencies": [
+    "bash",
+    "curl",
+    "jq",
+    "libnotify",
+    "xdg-utils",
     "dms"
   ],
   "requires_dms": ">=1.5.0",

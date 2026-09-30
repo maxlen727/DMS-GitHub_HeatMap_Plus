@@ -48,6 +48,10 @@ PluginComponent {
     property bool pillShowSingleDay: false
     property bool showDisplayName: false
 
+    // Popout grid metrics use theme tokens so the visualization scales with DMS.
+    readonly property real popoutSquareSize: Theme.iconSize + Theme.spacingXXS
+    readonly property real popoutSquareSpacing: Theme.spacingXS
+
     function readShared(key, defaultValue) {
         return SettingsData.getPluginSetting(root.pluginId, key, defaultValue)
     }
@@ -240,15 +244,19 @@ PluginComponent {
         // already being correct.
         root.refreshAll()
 
-        const cachedTotal = SettingsData.getPluginSetting(root.pluginId, "cachedTotal", "")
-        const cachedGridStr = SettingsData.getPluginSetting(root.pluginId, "cachedGrid", "")
-        root.githubDisplayName = SettingsData.getPluginSetting(root.pluginId, "cachedDisplayName", "")
+        const cachedState = PluginService.loadPluginState(root.pluginId, "cache", null)
+        const legacyCachedTotal = SettingsData.getPluginSetting(root.pluginId, "cachedTotal", "")
+        const legacyCachedGrid = SettingsData.getPluginSetting(root.pluginId, "cachedGrid", "")
+        const legacyDisplayName = SettingsData.getPluginSetting(root.pluginId, "cachedDisplayName", "")
+        const cachedTotal = cachedState?.total ?? legacyCachedTotal
+        const cachedGrid = cachedState?.grid ?? legacyCachedGrid
+        root.githubDisplayName = cachedState?.displayName ?? legacyDisplayName
         
-        if (cachedTotal && cachedGridStr) {
+        if (cachedTotal && cachedGrid) {
             try {
-                const cachedGrid = JSON.parse(cachedGridStr)
+                const cachedGridData = Array.isArray(cachedGrid) ? cachedGrid : JSON.parse(cachedGrid)
                 root.totalContributions = cachedTotal
-                root.gridData = cachedGrid
+                root.gridData = cachedGridData
                 
                 // Restore todayDay, yesterdayDay and selectedDay
                 let validDays = []
@@ -508,7 +516,7 @@ PluginComponent {
 # GitHub Heatmap Fetcher (Bash + Public API)
 GITHUB_USERNAME="${escapedUsername}"
 
-# GitHub contribution color scheme (dark theme) - fallback / classic palette
+# GitHub contribution color scheme (classic fallback palette)
 COLOR_0="#202329"
 COLOR_1="#0e4429"
 COLOR_2="#006d32"
@@ -525,157 +533,93 @@ else
     current_sunday=$(date -d "$today -$today_dow days" +%Y-%m-%d)
 fi
 
-# 52 weeks back, so grid_json covers a full year (like GitHub's own year
-# view) instead of just the last 8 weeks. The bar widget's popout still only
-# displays the most recent 8 weeks of this (see JS-side slicing below), but
-# the desktop widget's year view needs the full range, and re-fetching for
-# it separately would be wasteful since jogruber.de already returns a whole
-# year of data per request (?y=last) - we were just discarding most of it.
 start_date=$(date -d "$current_sunday -363 days" +%Y-%m-%d)
-today_timestamp=$(date -d "$today" +%s)
 
-# 2. Fetch Data (Public API)
+# 2. Fetch contribution data
 url="https://github-contributions-api.jogruber.de/v4/$GITHUB_USERNAME?y=last"
-
-temp_response=$(mktemp)
-http_code=$(curl -s --retry 3 --retry-delay 2 --connect-timeout 10 -w "%{http_code}" -o "$temp_response" "$url")
-body=$(cat "$temp_response")
-rm -f "$temp_response"
-
-# 3. Validation
-if [ "$http_code" != "200" ]; then
-    printf '{"contributions":[],"total":0,"error":true,"errorMessage":"User not found or API error (HTTP %s)"}\n' "$http_code"
+if ! body=$(curl -sS --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 30 "$url"); then
+    printf '{"contributions":[],"gridData":[],"total":0,"displayName":"","error":true,"errorMessage":"Contribution API request failed"}\n'
     exit 1
 fi
 
-# 3b. Fetch display name (best-effort - GitHub public API, unauthenticated).
-# If this fails or is rate-limited, we simply fall back to the username itself
-# and never fail the whole refresh because of it.
-display_name=""
-name_temp=$(mktemp)
-name_http_code=$(curl -s --connect-timeout 5 --max-time 8 -w "%{http_code}" -o "$name_temp" -H "Accept: application/vnd.github+json" "https://api.github.com/users/$GITHUB_USERNAME")
-if [ "$name_http_code" = "200" ]; then
-    display_name=$(jq -r '.name // empty' "$name_temp" 2>/dev/null)
+# 3. Fetch display name (best-effort). Keep the response as JSON so the
+# main jq pass can process both payloads without an extra jq invocation.
+profile_json='{}'
+profile_url="https://api.github.com/users/$GITHUB_USERNAME"
+if profile_body=$(curl -sS --connect-timeout 5 --max-time 8 -H "Accept: application/vnd.github+json" "$profile_url"); then
+    profile_json="$profile_body"
 fi
-rm -f "$name_temp"
-# Escape for embedding into our own printf'd JSON below
-display_name_json=$(printf '%s' "$display_name" | jq -Rs '.' 2>/dev/null)
-if [ -z "$display_name_json" ]; then display_name_json='""'; fi
 
-# 4. Process Data
-# We use jq to filter relevant days (>= start_date)
-relevant_days=$(echo "$body" | jq -c --arg start "$start_date" '.contributions[] | select(.date >= $start)')
+# 4. Transform the complete year in one jq process.
+printf '%s' "$body" | jq -c \
+    --arg start "$start_date" \
+    --arg end "$today" \
+    --arg c0 "$COLOR_0" \
+    --arg c1 "$COLOR_1" \
+    --arg c2 "$COLOR_2" \
+    --arg c3 "$COLOR_3" \
+    --arg c4 "$COLOR_4" \
+    --arg profile "$profile_json" \
+    '
+    def day_time: strptime("%Y-%m-%d");
 
-total_contributions=0
-all_days=()
+    def level_color:
+        if . == 0 then $c0
+        elif . == 1 then $c1
+        elif . == 2 then $c2
+        elif . == 3 then $c3
+        elif . == 4 then $c4
+        else $c0
+        end;
 
-# Read filtered JSON lines
-while read -r day_json; do
-    if [ -z "$day_json" ]; then continue; fi
+    def placeholder($weekday): {
+        weekday: $weekday,
+        weekdayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][$weekday],
+        date: "--/--",
+        count: 0,
+        color: $c0,
+        level: 0,
+        tooltipText: ""
+    };
+
+    def make_day:
+        . as $raw
+        | ($raw.date | day_time) as $tm
+        | ($tm | strftime("%w") | tonumber) as $weekday
+        | (($raw.count // 0) | tonumber? // 0) as $count
+        | (($raw.level // 0) | tonumber? // 0) as $level
+        | {
+            _date: $raw.date,
+            _week: (($tm | mktime) - ($weekday * 86400)),
+            weekday: $weekday,
+            weekdayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][$weekday],
+            date: ($tm | strftime("%d / %b / %y")),
+            count: $count,
+            color: ($level | level_color),
+            level: $level,
+            tooltipText: (($tm | strftime("%d / %b")) + " :: " + ($count | tostring))
+        };
+
+    def pad_week:
+        reduce .[] as $day ({}; .[($day.weekday | tostring)] = $day)
+        | [range(0; 7) as $weekday | .[($weekday | tostring)] // placeholder($weekday)];
+
+    [(.contributions // [])[]
+        | select(.date >= $start and .date <= $end)
+        | make_day
+    ]
+    | sort_by(._date) as $days
+    | ($days | sort_by(._week) | group_by(._week) | map(pad_week))
+      as $grid
+    | ($profile | fromjson? // {}) as $profile
+    | {
+        contributions: ($days | .[-7:] | map(del(._date, ._week))),
+        gridData: ($grid | map(map(del(._date, ._week)))),
+        total: (($days | map(.count) | add) // 0),
+        displayName: ($profile.name // ""),
+        error: false
+      }'
     
-    date=$(echo "$day_json" | jq -r '.date')
-    count=$(echo "$day_json" | jq -r '.count')
-    level=$(echo "$day_json" | jq -r '.level')
-
-    # Guard against non-numeric level/count from unexpected API payloads
-    case "$level" in ''|*[!0-9]*) level=0 ;; esac
-    case "$count" in ''|*[!0-9]*) count=0 ;; esac
-    
-    day_timestamp=$(date -d "$date" +%s)
-    
-    if [ "$day_timestamp" -le "$today_timestamp" ]; then
-        
-        case "$level" in
-            0) color="$COLOR_0" ;;
-            1) color="$COLOR_1" ;;
-            2) color="$COLOR_2" ;;
-            3) color="$COLOR_3" ;;
-            4) color="$COLOR_4" ;;
-            *) color="$COLOR_0" ;;
-        esac
-
-        total_contributions=$((total_contributions + count))
-
-        weekday=$(date -d "$date" +%w)
-        formatted_date=$(date -d "$date" "+%d / %b / %y")
-        tooltip_text=$(date -d "$date" "+%d / %b :: $count")
-        
-        weekday_names=("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat")
-        # Fix: Escape \${} to prevent JS interpolation
-        weekday_name="\${weekday_names[$weekday]}"
-
-        all_days+=("$date|$weekday|$count|$color|$formatted_date|$weekday_name|$tooltip_text|$level")
-    fi
-done <<< "$relevant_days"
-
-# 5. Build Grid
-# Fix: Escape \${} to prevent JS interpolation
-IFS=$'\\n' sorted_days=($(sort <<<"\${all_days[*]}"))
-unset IFS
-
-grid_json="["
-current_week="["
-current_week_day=-1
-first_week=1
-first_day_in_week=1
-
-# Fix: Escape \${} to prevent JS interpolation
-for day_data in "\${sorted_days[@]}"; do
-    IFS='|' read -r date weekday count color formatted_date weekday_name tooltip_text level <<< "$day_data"
-    
-    if [ "$weekday" == "0" ] && [ "$first_day_in_week" == "0" ]; then
-        current_week="$current_week]"
-        if [ "$first_week" == "1" ]; then
-            grid_json="$grid_json$current_week"
-            first_week=0
-        else
-            grid_json="$grid_json,$current_week"
-        fi
-        current_week="["
-        first_day_in_week=1
-    fi
-
-    day_obj="{\\\"weekday\\\":$weekday,\\\"weekdayName\\\":\\\"$weekday_name\\\",\\\"date\\\":\\\"$formatted_date\\\",\\\"count\\\":$count,\\\"color\\\":\\\"$color\\\",\\\"level\\\":$level,\\\"tooltipText\\\":\\\"$tooltip_text\\\"}"
-
-    if [ "$first_day_in_week" == "1" ]; then
-        current_week="$current_week$day_obj"
-        first_day_in_week=0
-    else
-        current_week="$current_week,$day_obj"
-    fi
-done
-
-current_week="$current_week]"
-if [ "$first_week" == "1" ]; then
-    grid_json="$grid_json$current_week"
-else
-    grid_json="$grid_json,$current_week"
-fi
-grid_json="$grid_json]"
-
-# 6. Build Pill Data
-# Fix: Escape \${} to prevent JS interpolation
-day_count=\${#sorted_days[@]}
-pill_start=$((day_count - 7))
-if [ $pill_start -lt 0 ]; then pill_start=0; fi
-
-pill_json="["
-pill_count=0
-
-for (( i=pill_start; i<day_count; i++ )); do
-    # Fix: Escape \${} to prevent JS interpolation
-    day_data="\${sorted_days[$i]}"
-    IFS='|' read -r date weekday count color formatted_date weekday_name tooltip_text level <<< "$day_data"
-
-    if [ $pill_count -gt 0 ]; then
-        pill_json="$pill_json,"
-    fi
-    pill_json="$pill_json{\\\"weekday\\\":\\\"$weekday_name\\\",\\\"date\\\":\\\"$formatted_date\\\",\\\"count\\\":$count,\\\"color\\\":\\\"$color\\\",\\\"level\\\":$level,\\\"tooltipText\\\":\\\"$tooltip_text\\\"}"
-    pill_count=$((pill_count + 1))
-done
-pill_json="$pill_json]"
-
-printf '{"contributions":%s,"gridData":%s,"total":%d,"displayName":%s,"error":false}\\n' "$pill_json" "$grid_json" "$total_contributions" "$display_name_json"
 exit 0
 `
     }
@@ -791,10 +735,12 @@ exit 0
                     // this composite plugin reads from - see the comment in
                     // Settings.qml for why we use this instead of pluginService
                     // directly.
-                    SettingsData.setPluginSetting(root.pluginId, "cachedTotal", root.totalContributions)
-                    SettingsData.setPluginSetting(root.pluginId, "cachedGrid", JSON.stringify(root.gridData))
-                    SettingsData.setPluginSetting(root.pluginId, "cachedGridYear", JSON.stringify(fullYearGrid))
-                    SettingsData.setPluginSetting(root.pluginId, "cachedDisplayName", root.githubDisplayName)
+                    PluginService.savePluginState(root.pluginId, "cache", {
+                        total: root.totalContributions,
+                        grid: root.gridData,
+                        gridYear: fullYearGrid,
+                        displayName: root.githubDisplayName
+                    })
 
                     // Set default selected day to the most recent one
                     let nValidDays = []
@@ -1023,7 +969,7 @@ exit 0
                         StyledText {
                             text: root.faGithubGlyph
                             font.family: root.faFamily
-                            font.pixelSize: 22
+                            font.pixelSize: Theme.iconSize
                             color: Theme.primary
                             anchors.centerIn: parent
                             scale: profileArea.containsMouse ? 1.2 : 1.0
@@ -1193,7 +1139,7 @@ exit 0
                                 model: ["S", "M", "T", "W", "T", "F", "S"]
                                 StyledText {
                                     text: modelData
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeSmall - 2
                                     color: Theme.surfaceVariantText
                                     width: 14
                                     height: 26
@@ -1205,17 +1151,17 @@ exit 0
 
                         // Grid
                         Row {
-                            spacing: 4
+                            spacing: root.popoutSquareSpacing
                             Repeater {
                                 model: root.gridData
                                 Column {
-                                    spacing: 4
+                                    spacing: root.popoutSquareSpacing
                                     required property var modelData
                                     Repeater {
                                         model: modelData
                                         Rectangle {
-                                            width: 26
-                                            height: 26
+                                            width: root.popoutSquareSize
+                                            height: root.popoutSquareSize
                                             radius: root.selectedDay === modelData ? 13 : 4
                                             Behavior on radius { NumberAnimation { duration: 600; easing.type: Easing.OutExpo } }
                                             color: modelData.color || Theme.surfaceContainer
@@ -1287,7 +1233,7 @@ exit 0
 
                                 StyledText {
                                     text: root.selectedDay ? root.selectedDay.count : "0"
-                                    font.pixelSize: 32
+                                    font.pixelSize: Theme.fontSizeXLarge * 1.5
                                     font.bold: true
                                     color: Theme.surfaceText
                                     anchors.verticalCenter: parent.verticalCenter
@@ -1296,7 +1242,7 @@ exit 0
 
                             StyledText {
                                 text: "contributions"
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeSmall - 2
                                 color: Theme.surfaceVariantText
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }

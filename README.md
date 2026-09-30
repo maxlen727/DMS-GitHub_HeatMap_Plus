@@ -10,7 +10,7 @@
 
 [![DMS Compatible](https://img.shields.io/badge/DMS-Compatible-purple.svg?labelColor=27303D)](https://github.com/AvengeMedia/DankMaterialShell)
 [![Requires DMS 1.5+](https://img.shields.io/badge/Requires%20DMS-1.5%2B-06599d.svg?labelColor=27303D)](https://danklinux.com/docs/dankmaterialshell/plugin-development#composite-plugins)
-[![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg?labelColor=27303D)](https://github.com/maxlen727/DMS-GitHub_HeatMap_Plus)
+[![Version](https://img.shields.io/badge/Version-2.1.0-blue.svg?labelColor=27303D)](https://github.com/maxlen727/DMS-GitHub_HeatMap_Plus)
 
 </div>
 
@@ -70,6 +70,8 @@ Settings are shared between the DankBar widget and the desktop widget.
 
 ### GitHub Account & Sync
 
+Contribution data is fetched from the public GitHub Contributions API at `github-contributions-api.jogruber.de`. When **Display Name** is enabled, the plugin also queries GitHub's public user API at `api.github.com/users/<username>`. No GitHub token is required.
+
 | Setting | Description |
 |---------|-------------|
 | **GitHub Identity** | Your GitHub username used to fetch public contribution data |
@@ -118,7 +120,28 @@ assets/
   icons/commit.svg       # Plugin icon
 ```
 
-The desktop widget reads cached contribution data from the bar widget via `savePluginData`/`loadPluginData`, and stays live through `PluginService.globalVarChanged`. No duplicate API requests between the two surfaces — the bar widget must be enabled and have fetched at least once before the desktop widget has data to show.
+The bar widget fetches contribution data and persists the resulting cache through DMS's `PluginService.savePluginState()` API. The desktop widget reads the same plugin state, so there are no duplicate API requests between the two surfaces. The desktop widget can still read the legacy settings cache written by older versions and automatically switches to the new state cache after the next successful refresh.
+
+## Changelog
+
+### 2.1.0 — 2026-09-30
+
+**Performance**
+- The contribution grid is now built by a single `jq` pass instead of roughly 2,500 `jq`/`date` process spawns on every refresh.
+- The fetched cache is saved once through DMS's plugin state (`PluginService.savePluginState()`) instead of four separate writes to `plugin_settings.json`. That removes the repeated settings rewrites and the global settings-changed broadcast after every fetch.
+
+**Changes**
+- The desktop widget now reads the cache from plugin state. Caches written by older versions are still read until the next successful refresh; the old `cached*` keys left in `plugin_settings.json` are no longer updated and can be deleted.
+- Settings sliders now use DMS's `DankSlider` instead of hand-built controls.
+- The DankBar popout grid, icon and text sizes now follow the DMS theme (`Theme.*` tokens) instead of fixed pixel values.
+
+**Metadata and docs**
+- `plugin.json` now declares the runtime dependencies: `bash`, `curl`, `jq`, `libnotify` and `xdg-utils`.
+- The README now discloses the public APIs the plugin talks to (`github-contributions-api.jogruber.de` and `api.github.com`) and explains how the cache is shared between the two surfaces.
+
+### 2.0.0 — 2026-07-13
+
+- First release of the composite plugin: a DankBar pill with a popout heatmap, plus a desktop widget showing the full-year grid. Builds on [JDKamalakar/DMS-GitHub_HeatMap](https://github.com/JDKamalakar/DMS-GitHub_HeatMap).
 
 ## Credits
 
