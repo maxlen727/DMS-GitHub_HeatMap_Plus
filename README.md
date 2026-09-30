@@ -70,6 +70,8 @@ Settings are shared between the DankBar widget and the desktop widget.
 
 ### GitHub Account & Sync
 
+Contribution data is fetched from the public GitHub Contributions API at `github-contributions-api.jogruber.de`. When **Display Name** is enabled, the plugin also queries GitHub's public user API at `api.github.com/users/<username>`. No GitHub token is required.
+
 | Setting | Description |
 |---------|-------------|
 | **GitHub Identity** | Your GitHub username used to fetch public contribution data |
@@ -118,7 +120,7 @@ assets/
   icons/commit.svg       # Plugin icon
 ```
 
-The desktop widget reads cached contribution data from the bar widget via `savePluginData`/`loadPluginData`, and stays live through `PluginService.globalVarChanged`. No duplicate API requests between the two surfaces — the bar widget must be enabled and have fetched at least once before the desktop widget has data to show.
+The bar widget fetches contribution data and persists the resulting cache through DMS's `PluginService.savePluginState()` API. The desktop widget reads the same plugin state, so there are no duplicate API requests between the two surfaces. The desktop widget can still read the legacy settings cache written by older versions and automatically switches to the new state cache after the next successful refresh.
 
 ## Credits
 
