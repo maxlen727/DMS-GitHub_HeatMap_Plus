@@ -87,12 +87,14 @@ DesktopPluginComponent {
 
     function refreshAll() {
         const newUsername = readShared("username", "")
-        const rawNew = readShared("cachedGridYear", "")
+        const cachedState = PluginService.loadPluginState(root.pluginId, "cache", null)
+        const legacyGrid = readShared("cachedGridYear", "")
+        const rawNew = cachedState?.gridYear ?? legacyGrid
 
-        if (root.settingsEverLoaded && newUsername === "" && rawNew === "" && root.githubUsername !== "") {
+        if (root.settingsEverLoaded && newUsername === "" && !rawNew && root.githubUsername !== "") {
             // Looks like a not-ready-yet read, not a genuine reset - leave
             // existing state alone and let the retry timer or the next real
-            // pluginSettingsChanged signal supply correct data.
+            // pluginSettingsChanged/pluginStateChanged signal supply correct data.
             return
         }
 
@@ -102,8 +104,8 @@ DesktopPluginComponent {
         root.bgOpacity = (readShared("desktopBackgroundOpacity", 70)) / 100
         root.squareSize = readShared("desktopSquareSize", 11)
         root.squareSpacing = readShared("desktopSquareSpacing", 3)
-        root.totalContributions = readShared("cachedTotal", "0")
-        root.githubDisplayName = readShared("cachedDisplayName", "")
+        root.totalContributions = cachedState?.total ?? readShared("cachedTotal", "0")
+        root.githubDisplayName = cachedState?.displayName ?? readShared("cachedDisplayName", "")
 
         if (!rawNew) {
             root.rawGridData = []
@@ -115,7 +117,7 @@ DesktopPluginComponent {
             }
         } else {
             try {
-                root.rawGridData = JSON.parse(rawNew)
+                root.rawGridData = Array.isArray(rawNew) ? rawNew : JSON.parse(rawNew)
                 root.settingsEverLoaded = true
                 root.emptyReadCount = 0
             } catch (e) {
@@ -157,6 +159,14 @@ DesktopPluginComponent {
         target: SettingsData
         function onPluginSettingsChanged() {
             root.refreshAll()
+        }
+    }
+
+    Connections {
+        target: PluginService
+        function onPluginStateChanged(changedPluginId) {
+            if (changedPluginId === root.pluginId)
+                root.refreshAll()
         }
     }
 
