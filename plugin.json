@@ -24,6 +24,11 @@
     "any"
   ],
   "dependencies": [
+    "bash",
+    "curl",
+    "jq",
+    "libnotify",
+    "xdg-utils",
     "dms"
   ],
   "requires_dms": ">=1.5.0",
